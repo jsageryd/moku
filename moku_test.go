@@ -18,6 +18,22 @@ func assertStatus(t *testing.T, mux *Mux, method string, path string, status int
 	}
 }
 
+func assertPathParams(t *testing.T, mux *Mux, method string, path string, expectedPathParams map[string]string) {
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(method, path, nil)
+	context := mux.Context(req)
+	mux.ServeHTTP(w, req)
+	if len(context.PathParams) != len(expectedPathParams) {
+		t.Errorf("Expected %d path params, got %d", len(expectedPathParams), len(context.PathParams))
+	}
+	for param, expectedValue := range expectedPathParams {
+		gotValue := context.PathParams[param]
+		if gotValue != expectedValue {
+			t.Errorf("Expected path param \"%s\" = \"%s\", got \"%s\"", param, expectedValue, gotValue)
+		}
+	}
+}
+
 func assertHeader(t *testing.T, mux *Mux, method string, path string, headerKey string, headerValue string) {
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(method, path, nil)
@@ -167,6 +183,10 @@ func TestMuxStaticRedirectTrailingSlashGet(t *testing.T) {
 		"/foo/bar",
 		"/bar/",
 		"/bar/foo/",
+		"/a",
+		"/a/:id",
+		"/b/",
+		"/b/:id/",
 	})
 	mux.Get("/nilhandler", nil)
 	mux.RedirectTrailingSlash = true
@@ -185,6 +205,14 @@ func TestMuxStaticRedirectTrailingSlashGet(t *testing.T) {
 		{"/bar/", "", http.StatusOK},
 		{"/bar/foo", "/bar/foo/", http.StatusMovedPermanently},
 		{"/bar/foo/", "", http.StatusOK},
+		{"/a", "", http.StatusOK},
+		{"/a/", "/a", http.StatusMovedPermanently},
+		{"/a/5", "", http.StatusOK},
+		{"/a/5/", "/a/5", http.StatusMovedPermanently},
+		{"/b", "/b/", http.StatusMovedPermanently},
+		{"/b/", "", http.StatusOK},
+		{"/b/5", "/b/5/", http.StatusMovedPermanently},
+		{"/b/5/", "", http.StatusOK},
 		{"/nilhandler", "", http.StatusNotFound},
 		{"/undefined", "", http.StatusNotFound},
 	}
@@ -225,6 +253,30 @@ func TestMuxStaticRedirectTrailingSlashPost(t *testing.T) {
 	for _, e := range expectations {
 		assertStatus(t, mux, "POST", e.requestedPath, e.expectedCode)
 		assertHeader(t, mux, "POST", e.requestedPath, "Location", e.expectedRedirectPath)
+	}
+}
+
+func TestMuxPathParams(t *testing.T) {
+	paths := []string{
+		"/foo/:id",
+		"/foo/:id/bar",
+		"/foo/:id/bar/:id2",
+	}
+
+	expectations := []struct {
+		requestedPath      string
+		expectedPathParams map[string]string
+	}{
+		{"/foo/1", map[string]string{":id": "1"}},
+		{"/foo/1/bar", map[string]string{":id": "1"}},
+		{"/foo/1/bar/2", map[string]string{":id": "1", ":id2": "2"}},
+	}
+
+	mux := newMuxWithGetPaths(paths)
+
+	for _, e := range expectations {
+		assertStatus(t, mux, "GET", e.requestedPath, http.StatusOK)
+		assertPathParams(t, mux, "GET", e.requestedPath, e.expectedPathParams)
 	}
 }
 

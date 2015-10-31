@@ -12,6 +12,7 @@ import (
 type Mux struct {
 	sync.RWMutex
 	rootNode *node
+	contexts map[*http.Request]*Context
 
 	/*
 	   ConcurrentAdd (default true) can be set to false if routes will not be
@@ -32,8 +33,33 @@ type Mux struct {
 	RedirectTrailingSlash bool
 }
 
+// Context contains data related to a specific request.
+type Context struct {
+	PathParams map[string]string
+}
+
+func newContext() *Context {
+	return &Context{
+		PathParams: make(map[string]string),
+	}
+}
+
+// Context returns the context object for the specified request.
+func (m *Mux) Context(r *http.Request) *Context {
+	context, ok := m.contexts[r]
+	if !ok {
+		context = newContext()
+		m.contexts[r] = context
+	}
+	return context
+}
+
 type node struct {
-	nodes   map[string]*node
+	nodes     map[string]*node
+	pathParam struct {
+		name string
+		node *node
+	}
 	handler http.HandlerFunc
 }
 
@@ -47,6 +73,7 @@ func newNode() *node {
 func New() *Mux {
 	return &Mux{
 		rootNode: newNode(),
+		contexts: make(map[*http.Request]*Context),
 
 		ConcurrentAdd:         true,
 		RedirectTrailingSlash: true,
@@ -110,6 +137,14 @@ func (m *Mux) addRoute(method string, path string, handler http.HandlerFunc) err
 		m.rootNode.nodes[method] = currentNode
 	}
 	splitString(path[1:], "/", func(part string) error {
+		if len(part) > 0 && part[0] == ':' {
+			if currentNode.pathParam.node == nil {
+				currentNode.pathParam.name = part
+				currentNode.pathParam.node = newNode()
+			}
+			currentNode = currentNode.pathParam.node
+			return nil
+		}
 		t := currentNode.nodes
 		child, ok := t[part]
 		if !ok {
@@ -124,6 +159,7 @@ func (m *Mux) addRoute(method string, path string, handler http.HandlerFunc) err
 }
 
 func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	defer delete(m.contexts, r)
 	h, isRedirect := m.findHandlerFunc(r)
 	if h == nil {
 		if isRedirect {
@@ -163,6 +199,10 @@ func (m *Mux) findHandlerFunc(r *http.Request) (http.HandlerFunc, bool) {
 		lastNode = node
 		node, ok = nextNodeCandidates[part]
 		if ok {
+			nextNodeCandidates = node.nodes
+		} else if lastNode.pathParam.node != nil && part != "" {
+			m.Context(r).PathParams[lastNode.pathParam.name] = part
+			node = lastNode.pathParam.node
 			nextNodeCandidates = node.nodes
 		} else {
 			return errDeadEnd
@@ -224,6 +264,11 @@ func (m *Mux) PrintRoutes() {
 	for name, node := range m.rootNode.nodes {
 		stack = append(stack, &pathItem{name, node, 0})
 	}
+	if m.rootNode.pathParam.node != nil {
+		name := m.rootNode.pathParam.name
+		node := m.rootNode.pathParam.node
+		stack = append(stack, &pathItem{name, node, 0})
+	}
 	for len(stack) > 0 {
 		item, stack = stack[len(stack)-1], stack[:len(stack)-1]
 		hasHandlerStr := "  "
@@ -232,6 +277,11 @@ func (m *Mux) PrintRoutes() {
 		}
 		fmt.Printf("%s%s%s\n", hasHandlerStr, strings.Repeat("  ", item.indent), item.name)
 		for name, node := range item.node.nodes {
+			stack = append(stack, &pathItem{"/" + name, node, item.indent + 1})
+		}
+		if item.node.pathParam.node != nil {
+			name := item.node.pathParam.name
+			node := item.node.pathParam.node
 			stack = append(stack, &pathItem{"/" + name, node, item.indent + 1})
 		}
 	}
