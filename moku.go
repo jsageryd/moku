@@ -136,11 +136,20 @@ func (m *Mux) addRoute(method string, path string, handler http.HandlerFunc) err
 		currentNode = newNode()
 		m.rootNode.nodes[method] = currentNode
 	}
-	splitString(path[1:], "/", func(part string) error {
+	err := splitString(path[1:], "/", func(part string) error {
 		if len(part) > 0 && part[0] == ':' {
 			if currentNode.pathParam.node == nil {
 				currentNode.pathParam.name = part
 				currentNode.pathParam.node = newNode()
+			} else {
+				if currentNode.pathParam.name != part {
+					return fmt.Errorf(
+						"Path param '%s' of '%s' already defined as '%s'",
+						part,
+						path,
+						currentNode.pathParam.name,
+					)
+				}
 			}
 			currentNode = currentNode.pathParam.node
 			return nil
@@ -154,6 +163,9 @@ func (m *Mux) addRoute(method string, path string, handler http.HandlerFunc) err
 		currentNode = child
 		return nil
 	})
+	if err != nil {
+		return err
+	}
 	currentNode.handler = handler
 	return nil
 }

@@ -280,6 +280,15 @@ func TestMuxPathParams(t *testing.T) {
 	}
 }
 
+func TestDuplicatePathParam(t *testing.T) {
+	mux := New()
+	mux.Get("/:foo", nil)
+	err := mux.Get("/:bar", nil)
+	if err == nil {
+		t.Errorf("Expected path param already defined error, got nil")
+	}
+}
+
 func TestSplitString(t *testing.T) {
 	stringSplits := map[string][]string{
 		"":           {""},
