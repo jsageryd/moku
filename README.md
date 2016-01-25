@@ -40,6 +40,11 @@ func main() {
 }
 ```
 
+```
+$ curl :8080/foo/world
+Hello, world
+```
+
 ## Licence
 Copyright (c) 2015 Johan Sageryd <j@1616.se>
 
