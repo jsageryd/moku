@@ -33,7 +33,7 @@ var mux = moku.New()
 
 func main() {
 	mux.Get("/foo/:bar", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Hello, %s\n", mux.Context(r).PathParams[":bar"])
+		fmt.Fprintf(w, "Hello, %s\n", mux.Context(r).PathParams["bar"])
 	})
 	http.Handle("/", mux)
 	http.ListenAndServe(":8080", nil)

@@ -140,12 +140,12 @@ func (m *Mux) addRoute(method string, path string, handler http.HandlerFunc) err
 	err := splitString(path[1:], "/", func(part string) error {
 		if len(part) > 0 && part[0] == ':' {
 			if currentNode.pathParam.node == nil {
-				currentNode.pathParam.name = part
+				currentNode.pathParam.name = part[1:]
 				currentNode.pathParam.node = newNode()
 			} else {
-				if currentNode.pathParam.name != part {
+				if currentNode.pathParam.name != part[1:] {
 					return fmt.Errorf(
-						"Path param '%s' of '%s' already defined as '%s'",
+						"Path param ':%s' of '%s' already defined as ':%s'",
 						part,
 						path,
 						currentNode.pathParam.name,
@@ -278,7 +278,7 @@ func (m *Mux) PrintRoutes() {
 		stack = append(stack, &pathItem{name, node, 0})
 	}
 	if m.rootNode.pathParam.node != nil {
-		name := m.rootNode.pathParam.name
+		name := ":" + m.rootNode.pathParam.name
 		node := m.rootNode.pathParam.node
 		stack = append(stack, &pathItem{name, node, 0})
 	}
@@ -293,7 +293,7 @@ func (m *Mux) PrintRoutes() {
 			stack = append(stack, &pathItem{"/" + name, node, item.indent + 1})
 		}
 		if item.node.pathParam.node != nil {
-			name := item.node.pathParam.name
+			name := ":" + item.node.pathParam.name
 			node := item.node.pathParam.node
 			stack = append(stack, &pathItem{"/" + name, node, item.indent + 1})
 		}

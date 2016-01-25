@@ -267,9 +267,9 @@ func TestMuxPathParams(t *testing.T) {
 		requestedPath      string
 		expectedPathParams map[string]string
 	}{
-		{"/foo/1", map[string]string{":id": "1"}},
-		{"/foo/1/bar", map[string]string{":id": "1"}},
-		{"/foo/1/bar/2", map[string]string{":id": "1", ":id2": "2"}},
+		{"/foo/1", map[string]string{"id": "1"}},
+		{"/foo/1/bar", map[string]string{"id": "1"}},
+		{"/foo/1/bar/2", map[string]string{"id": "1", "id2": "2"}},
 	}
 
 	mux := newMuxWithGetPaths(paths)
