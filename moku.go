@@ -1,3 +1,4 @@
+// Package moku provides a simple but powerful tree-based HTTP router.
 package moku
 
 import (
