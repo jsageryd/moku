@@ -12,8 +12,9 @@ import (
 // Mux is the router/muxer. Create an instance of Mux using New().
 type Mux struct {
 	sync.RWMutex
-	rootNode *node
-	contexts map[*http.Request]*Context
+	contextMutex sync.RWMutex
+	rootNode     *node
+	contexts     map[*http.Request]*Context
 
 	/*
 	   ConcurrentAdd (default true) can be set to false if routes will not be
@@ -47,10 +48,14 @@ func newContext() *Context {
 
 // Context returns the context object for the specified request.
 func (m *Mux) Context(r *http.Request) *Context {
+	m.contextMutex.RLock()
 	context, ok := m.contexts[r]
+	m.contextMutex.RUnlock()
 	if !ok {
 		context = newContext()
+		m.contextMutex.Lock()
 		m.contexts[r] = context
+		m.contextMutex.Unlock()
 	}
 	return context
 }
@@ -172,7 +177,11 @@ func (m *Mux) addRoute(method string, path string, handler http.HandlerFunc) err
 }
 
 func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	defer delete(m.contexts, r)
+	defer func() {
+		m.contextMutex.Lock()
+		delete(m.contexts, r)
+		m.contextMutex.Unlock()
+	}()
 	h, isRedirect := m.findHandlerFunc(r)
 	if h == nil {
 		if isRedirect {
