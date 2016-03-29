@@ -26,12 +26,12 @@ func assertPathParams(t *testing.T, mux *Mux, method string, definedPath string,
 	mux.Get(definedPath, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		pathParams := PathParams(ctx)
 		if len(pathParams) != len(expectedPathParams) {
-			t.Errorf("Expected %d path params, got %d", len(expectedPathParams), len(pathParams))
+			t.Errorf("Expected %d path params, got %d for %s", len(expectedPathParams), len(pathParams), requestPath)
 		}
 		for param, expectedValue := range expectedPathParams {
 			gotValue := pathParams[param]
 			if gotValue != expectedValue {
-				t.Errorf("Expected path param \"%s\" = \"%s\", got \"%s\"", param, expectedValue, gotValue)
+				t.Errorf("Expected path param \"%s\" = \"%s\", got \"%s\" for %s", param, expectedValue, gotValue, requestPath)
 			}
 		}
 	})
