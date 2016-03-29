@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"golang.org/x/net/context"
 )
 
 func assertStatus(t *testing.T, mux *Mux, method string, path string, status int) {
@@ -18,20 +20,22 @@ func assertStatus(t *testing.T, mux *Mux, method string, path string, status int
 	}
 }
 
-func assertPathParams(t *testing.T, mux *Mux, method string, path string, expectedPathParams map[string]string) {
+func assertPathParams(t *testing.T, mux *Mux, method string, definedPath string, requestPath string, expectedPathParams map[string]string) {
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(method, path, nil)
-	context := mux.Context(req)
-	mux.ServeHTTP(w, req)
-	if len(context.PathParams) != len(expectedPathParams) {
-		t.Errorf("Expected %d path params, got %d", len(expectedPathParams), len(context.PathParams))
-	}
-	for param, expectedValue := range expectedPathParams {
-		gotValue := context.PathParams[param]
-		if gotValue != expectedValue {
-			t.Errorf("Expected path param \"%s\" = \"%s\", got \"%s\"", param, expectedValue, gotValue)
+	req, _ := http.NewRequest(method, requestPath, nil)
+	mux.Get(definedPath, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+		pathParams := PathParams(ctx)
+		if len(pathParams) != len(expectedPathParams) {
+			t.Errorf("Expected %d path params, got %d", len(expectedPathParams), len(pathParams))
 		}
-	}
+		for param, expectedValue := range expectedPathParams {
+			gotValue := pathParams[param]
+			if gotValue != expectedValue {
+				t.Errorf("Expected path param \"%s\" = \"%s\", got \"%s\"", param, expectedValue, gotValue)
+			}
+		}
+	})
+	mux.ServeHTTP(w, req)
 }
 
 func assertHeader(t *testing.T, mux *Mux, method string, path string, headerKey string, headerValue string) {
@@ -56,7 +60,7 @@ func assertBodyEquals(t *testing.T, mux *Mux, method string, path string, expect
 func TestGetWithoutLeadingSlash(t *testing.T) {
 	mux := New()
 	path := "foo"
-	err := mux.Get(path, func(w http.ResponseWriter, r *http.Request) {})
+	err := mux.Get(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
 	if err != errNoLeadingSlash {
 		t.Errorf("Expected errNoLeadingSlash, got %s", err)
 	}
@@ -65,71 +69,71 @@ func TestGetWithoutLeadingSlash(t *testing.T) {
 
 func TestGetWithUnknownPath(t *testing.T) {
 	mux := New()
-	mux.Get("/foo", func(w http.ResponseWriter, r *http.Request) {})
+	mux.Get("/foo", func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
 	assertStatus(t, mux, "GET", "/bar", http.StatusNotFound)
 }
 
 func TestDelete(t *testing.T) {
 	mux := New()
 	path := "/foo"
-	mux.Delete(path, func(w http.ResponseWriter, r *http.Request) {})
+	mux.Delete(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
 	assertStatus(t, mux, "DELETE", path, http.StatusOK)
 }
 
 func TestGet(t *testing.T) {
 	mux := New()
 	path := "/foo"
-	mux.Get(path, func(w http.ResponseWriter, r *http.Request) {})
+	mux.Get(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
 	assertStatus(t, mux, "GET", path, http.StatusOK)
 }
 
 func TestHead(t *testing.T) {
 	mux := New()
 	path := "/foo"
-	mux.Head(path, func(w http.ResponseWriter, r *http.Request) {})
+	mux.Head(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
 	assertStatus(t, mux, "HEAD", path, http.StatusOK)
 }
 
 func TestOptions(t *testing.T) {
 	mux := New()
 	path := "/foo"
-	mux.Options(path, func(w http.ResponseWriter, r *http.Request) {})
+	mux.Options(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
 	assertStatus(t, mux, "OPTIONS", path, http.StatusOK)
 }
 
 func TestPatch(t *testing.T) {
 	mux := New()
 	path := "/foo"
-	mux.Patch(path, func(w http.ResponseWriter, r *http.Request) {})
+	mux.Patch(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
 	assertStatus(t, mux, "PATCH", path, http.StatusOK)
 }
 
 func TestPost(t *testing.T) {
 	mux := New()
 	path := "/foo"
-	mux.Post(path, func(w http.ResponseWriter, r *http.Request) {})
+	mux.Post(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
 	assertStatus(t, mux, "POST", path, http.StatusOK)
 }
 
 func TestPut(t *testing.T) {
 	mux := New()
 	path := "/foo"
-	mux.Put(path, func(w http.ResponseWriter, r *http.Request) {})
+	mux.Put(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
 	assertStatus(t, mux, "PUT", path, http.StatusOK)
 }
 
 func TestTrace(t *testing.T) {
 	mux := New()
 	path := "/foo"
-	mux.Trace(path, func(w http.ResponseWriter, r *http.Request) {})
+	mux.Trace(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
 	assertStatus(t, mux, "TRACE", path, http.StatusOK)
 }
 
 func newMuxWithGetPaths(paths []string) *Mux {
 	mux := New()
 	for _, path := range paths {
-		mux.Get(path, func(p string) http.HandlerFunc {
-			return func(w http.ResponseWriter, r *http.Request) {
+		mux.Get(path, func(p string) HandlerFunc {
+			return func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 				io.WriteString(w, p)
 			}
 		}(path))
@@ -140,8 +144,8 @@ func newMuxWithGetPaths(paths []string) *Mux {
 func newMuxWithPostPaths(paths []string) *Mux {
 	mux := New()
 	for _, path := range paths {
-		mux.Post(path, func(p string) http.HandlerFunc {
-			return func(w http.ResponseWriter, r *http.Request) {
+		mux.Post(path, func(p string) HandlerFunc {
+			return func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 				io.WriteString(w, p)
 			}
 		}(path))
@@ -257,26 +261,18 @@ func TestMuxStaticRedirectTrailingSlashPost(t *testing.T) {
 }
 
 func TestMuxPathParams(t *testing.T) {
-	paths := []string{
-		"/foo/:id",
-		"/foo/:id/bar",
-		"/foo/:id/bar/:id2",
-	}
-
 	expectations := []struct {
+		definedPath        string
 		requestedPath      string
 		expectedPathParams map[string]string
 	}{
-		{"/foo/1", map[string]string{"id": "1"}},
-		{"/foo/1/bar", map[string]string{"id": "1"}},
-		{"/foo/1/bar/2", map[string]string{"id": "1", "id2": "2"}},
+		{"/foo/:id", "/foo/1", map[string]string{"id": "1"}},
+		{"/foo/:id/bar", "/foo/1/bar", map[string]string{"id": "1"}},
+		{"/foo/:id/bar/:id2", "/foo/1/bar/2", map[string]string{"id": "1", "id2": "2"}},
 	}
 
-	mux := newMuxWithGetPaths(paths)
-
 	for _, e := range expectations {
-		assertStatus(t, mux, "GET", e.requestedPath, http.StatusOK)
-		assertPathParams(t, mux, "GET", e.requestedPath, e.expectedPathParams)
+		assertPathParams(t, New(), "GET", e.definedPath, e.requestedPath, e.expectedPathParams)
 	}
 }
 
@@ -349,7 +345,7 @@ func splitSlicesEqual(a, b []string) bool {
 
 func BenchmarkMuxStaticSimple(b *testing.B) {
 	mux := New()
-	mux.Get("/foo", func(w http.ResponseWriter, r *http.Request) {})
+	mux.Get("/foo", func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
 	for n := 0; n < b.N; n++ {
 		r, err := http.NewRequest("GET", "/foo", nil)
 		if err != nil {

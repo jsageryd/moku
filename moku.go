@@ -7,14 +7,23 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+
+	"golang.org/x/net/context"
 )
+
+type mokuContextKey int
+
+const (
+	mokuPathParams mokuContextKey = iota
+)
+
+// HandlerFunc is http.HandlerFunc with added context
+type HandlerFunc func(context.Context, http.ResponseWriter, *http.Request)
 
 // Mux is the router/muxer. Create an instance of Mux using New().
 type Mux struct {
 	sync.RWMutex
-	contextMutex sync.RWMutex
-	rootNode     *node
-	contexts     map[*http.Request]*Context
+	rootNode *node
 
 	/*
 	   ConcurrentAdd (default true) can be set to false if routes will not be
@@ -35,29 +44,13 @@ type Mux struct {
 	RedirectTrailingSlash bool
 }
 
-// Context contains data related to a specific request.
-type Context struct {
-	PathParams map[string]string
-}
-
-func newContext() *Context {
-	return &Context{
-		PathParams: make(map[string]string),
+// PathParams extracts path params from given context
+func PathParams(ctx context.Context) map[string]string {
+	pathParams, ok := ctx.Value(mokuPathParams).(map[string]string)
+	if ok {
+		return pathParams
 	}
-}
-
-// Context returns the context object for the specified request.
-func (m *Mux) Context(r *http.Request) *Context {
-	m.contextMutex.RLock()
-	context, ok := m.contexts[r]
-	m.contextMutex.RUnlock()
-	if !ok {
-		context = newContext()
-		m.contextMutex.Lock()
-		m.contexts[r] = context
-		m.contextMutex.Unlock()
-	}
-	return context
+	return nil
 }
 
 type node struct {
@@ -66,7 +59,7 @@ type node struct {
 		name string
 		node *node
 	}
-	handler http.HandlerFunc
+	handler HandlerFunc
 }
 
 func newNode() *node {
@@ -79,7 +72,6 @@ func newNode() *node {
 func New() *Mux {
 	return &Mux{
 		rootNode: newNode(),
-		contexts: make(map[*http.Request]*Context),
 
 		ConcurrentAdd:         true,
 		RedirectTrailingSlash: true,
@@ -87,48 +79,48 @@ func New() *Mux {
 }
 
 // Delete configures a DELETE route.
-func (m *Mux) Delete(path string, handler http.HandlerFunc) error {
+func (m *Mux) Delete(path string, handler HandlerFunc) error {
 	return m.addRoute("DELETE", path, handler)
 }
 
 // Get configures a GET route.
-func (m *Mux) Get(path string, handler http.HandlerFunc) error {
+func (m *Mux) Get(path string, handler HandlerFunc) error {
 	return m.addRoute("GET", path, handler)
 }
 
 // Head configures a HEAD route.
-func (m *Mux) Head(path string, handler http.HandlerFunc) error {
+func (m *Mux) Head(path string, handler HandlerFunc) error {
 	return m.addRoute("HEAD", path, handler)
 }
 
 // Options configures an OPTIONS route.
-func (m *Mux) Options(path string, handler http.HandlerFunc) error {
+func (m *Mux) Options(path string, handler HandlerFunc) error {
 	return m.addRoute("OPTIONS", path, handler)
 }
 
 // Patch configures a PATCH route.
-func (m *Mux) Patch(path string, handler http.HandlerFunc) error {
+func (m *Mux) Patch(path string, handler HandlerFunc) error {
 	return m.addRoute("PATCH", path, handler)
 }
 
 // Post configures a POST route.
-func (m *Mux) Post(path string, handler http.HandlerFunc) error {
+func (m *Mux) Post(path string, handler HandlerFunc) error {
 	return m.addRoute("POST", path, handler)
 }
 
 // Put configures a PUT route.
-func (m *Mux) Put(path string, handler http.HandlerFunc) error {
+func (m *Mux) Put(path string, handler HandlerFunc) error {
 	return m.addRoute("PUT", path, handler)
 }
 
 // Trace configures a TRACE route.
-func (m *Mux) Trace(path string, handler http.HandlerFunc) error {
+func (m *Mux) Trace(path string, handler HandlerFunc) error {
 	return m.addRoute("TRACE", path, handler)
 }
 
 var errNoLeadingSlash = errors.New("Path does not being with leading slash")
 
-func (m *Mux) addRoute(method string, path string, handler http.HandlerFunc) error {
+func (m *Mux) addRoute(method string, path string, handler HandlerFunc) error {
 	if m.ConcurrentAdd {
 		m.Lock()
 		defer m.Unlock()
@@ -177,12 +169,17 @@ func (m *Mux) addRoute(method string, path string, handler http.HandlerFunc) err
 }
 
 func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	defer func() {
-		m.contextMutex.Lock()
-		delete(m.contexts, r)
-		m.contextMutex.Unlock()
-	}()
-	h, isRedirect := m.findHandlerFunc(r)
+	m.ServeHTTPC(context.Background(), w, r)
+}
+
+// ServeHTTPC is ServeHTTP with added context
+func (m *Mux) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	pathParams := PathParams(ctx)
+	if pathParams == nil {
+		pathParams = make(map[string]string)
+		ctx = context.WithValue(ctx, mokuPathParams, pathParams)
+	}
+	h, isRedirect := m.findHandlerFunc(r, pathParams)
 	if h == nil {
 		if isRedirect {
 			var code int
@@ -196,13 +193,13 @@ func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 		}
 	} else {
-		h(w, r)
+		h(ctx, w, r)
 	}
 }
 
 var errDeadEnd = errors.New("Dead end")
 
-func (m *Mux) findHandlerFunc(r *http.Request) (http.HandlerFunc, bool) {
+func (m *Mux) findHandlerFunc(r *http.Request, pathParams map[string]string) (HandlerFunc, bool) {
 	if m.ConcurrentAdd {
 		m.RLock()
 		defer m.RUnlock()
@@ -223,7 +220,7 @@ func (m *Mux) findHandlerFunc(r *http.Request) (http.HandlerFunc, bool) {
 		if ok {
 			nextNodeCandidates = node.nodes
 		} else if lastNode.pathParam.node != nil && part != "" {
-			m.Context(r).PathParams[lastNode.pathParam.name] = part
+			pathParams[lastNode.pathParam.name] = part
 			node = lastNode.pathParam.node
 			nextNodeCandidates = node.nodes
 		} else {

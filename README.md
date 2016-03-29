@@ -11,7 +11,7 @@ Moku provides:
 - Path parameters such as `/foo/:id`, mapping `:id` to whatever is in its place
   in the request URL.
 
-- Plain http.HandlerFunc callbacks
+- Context (net/context) passed by argument eliminating need for locking
 
 - Zero allocation serving static routes
 
@@ -26,14 +26,15 @@ import (
 	"fmt"
 	"net/http"
 
+	"golang.org/x/net/context"
+
 	"github.com/jsageryd/moku"
 )
 
-var mux = moku.New()
-
 func main() {
-	mux.Get("/foo/:bar", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Hello, %s\n", mux.Context(r).PathParams["bar"])
+	mux := moku.New()
+	mux.Get("/foo/:bar", func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "Hello, %s\n", moku.PathParams(ctx)["bar"])
 	})
 	http.Handle("/", mux)
 	http.ListenAndServe(":8080", nil)
