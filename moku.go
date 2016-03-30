@@ -17,6 +17,12 @@ const (
 	mokuPathParams mokuContextKey = iota
 )
 
+// Handler is http.Handler with added context
+type Handler interface {
+	// ServeHTTPC is ServeHTTP with added context
+	ServeHTTPC(context.Context, http.ResponseWriter, *http.Request)
+}
+
 // HandlerFunc is http.HandlerFunc with added context
 type HandlerFunc func(context.Context, http.ResponseWriter, *http.Request)
 
