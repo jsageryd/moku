@@ -11,10 +11,10 @@ import (
 	"golang.org/x/net/context"
 )
 
-type mokuContextKey int
+type contextKey int
 
 const (
-	mokuPathParams mokuContextKey = iota
+	pathParamsKey contextKey = iota
 )
 
 // Handler is http.Handler with added context
@@ -60,7 +60,7 @@ type Mux struct {
 
 // PathParams extracts path params from given context
 func PathParams(ctx context.Context) map[string]string {
-	pathParams, ok := ctx.Value(mokuPathParams).(map[string]string)
+	pathParams, ok := ctx.Value(pathParamsKey).(map[string]string)
 	if ok {
 		return pathParams
 	}
@@ -231,7 +231,7 @@ func (m *Mux) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.Req
 	pathParams := PathParams(ctx)
 	if pathParams == nil {
 		pathParams = make(map[string]string)
-		ctx = context.WithValue(ctx, mokuPathParams, pathParams)
+		ctx = context.WithValue(ctx, pathParamsKey, pathParams)
 	}
 	h, isRedirect := m.findHandler(r, pathParams)
 	if h == nil {
