@@ -23,7 +23,7 @@ func assertStatus(t *testing.T, mux *Mux, method string, path string, status int
 func assertPathParams(t *testing.T, mux *Mux, method string, definedPath string, requestPath string, expectedPathParams map[string]string) {
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest(method, requestPath, nil)
-	mux.Get(definedPath, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	mux.GetFunc(definedPath, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		pathParams := PathParams(ctx)
 		if len(pathParams) != len(expectedPathParams) {
 			t.Errorf("Expected %d path params, got %d for %s", len(expectedPathParams), len(pathParams), requestPath)
@@ -57,82 +57,146 @@ func assertBodyEquals(t *testing.T, mux *Mux, method string, path string, expect
 	}
 }
 
-func TestGetWithoutLeadingSlash(t *testing.T) {
+func TestGetFuncWithoutLeadingSlash(t *testing.T) {
 	mux := New()
 	path := "foo"
-	err := mux.Get(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
+	err := mux.GetFunc(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
 	if err != errNoLeadingSlash {
 		t.Errorf("Expected errNoLeadingSlash, got %s", err)
 	}
 	assertStatus(t, mux, "GET", path, http.StatusNotFound)
 }
 
-func TestGetWithUnknownPath(t *testing.T) {
+func TestGetFuncWithUnknownPath(t *testing.T) {
 	mux := New()
-	mux.Get("/foo", func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
+	mux.GetFunc("/foo", func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
 	assertStatus(t, mux, "GET", "/bar", http.StatusNotFound)
+}
+
+func TestDeleteFunc(t *testing.T) {
+	mux := New()
+	path := "/foo"
+	mux.DeleteFunc(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
+	assertStatus(t, mux, "DELETE", path, http.StatusOK)
+}
+
+func TestGetFunc(t *testing.T) {
+	mux := New()
+	path := "/foo"
+	mux.GetFunc(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
+	assertStatus(t, mux, "GET", path, http.StatusOK)
+}
+
+func TestHeadFunc(t *testing.T) {
+	mux := New()
+	path := "/foo"
+	mux.HeadFunc(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
+	assertStatus(t, mux, "HEAD", path, http.StatusOK)
+}
+
+func TestOptionsFunc(t *testing.T) {
+	mux := New()
+	path := "/foo"
+	mux.OptionsFunc(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
+	assertStatus(t, mux, "OPTIONS", path, http.StatusOK)
+}
+
+func TestPatchFunc(t *testing.T) {
+	mux := New()
+	path := "/foo"
+	mux.PatchFunc(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
+	assertStatus(t, mux, "PATCH", path, http.StatusOK)
+}
+
+func TestPostFunc(t *testing.T) {
+	mux := New()
+	path := "/foo"
+	mux.PostFunc(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
+	assertStatus(t, mux, "POST", path, http.StatusOK)
+}
+
+func TestPutFunc(t *testing.T) {
+	mux := New()
+	path := "/foo"
+	mux.PutFunc(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
+	assertStatus(t, mux, "PUT", path, http.StatusOK)
+}
+
+func TestTraceFunc(t *testing.T) {
+	mux := New()
+	path := "/foo"
+	mux.TraceFunc(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
+	assertStatus(t, mux, "TRACE", path, http.StatusOK)
 }
 
 func TestDelete(t *testing.T) {
 	mux := New()
 	path := "/foo"
-	mux.Delete(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
+	var handler HandlerFunc = func(ctx context.Context, w http.ResponseWriter, r *http.Request) {}
+	mux.Delete(path, handler)
 	assertStatus(t, mux, "DELETE", path, http.StatusOK)
 }
 
 func TestGet(t *testing.T) {
 	mux := New()
 	path := "/foo"
-	mux.Get(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
+	var handler HandlerFunc = func(ctx context.Context, w http.ResponseWriter, r *http.Request) {}
+	mux.Get(path, handler)
 	assertStatus(t, mux, "GET", path, http.StatusOK)
 }
 
 func TestHead(t *testing.T) {
 	mux := New()
 	path := "/foo"
-	mux.Head(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
+	var handler HandlerFunc = func(ctx context.Context, w http.ResponseWriter, r *http.Request) {}
+	mux.Head(path, handler)
 	assertStatus(t, mux, "HEAD", path, http.StatusOK)
 }
 
 func TestOptions(t *testing.T) {
 	mux := New()
 	path := "/foo"
-	mux.Options(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
+	var handler HandlerFunc = func(ctx context.Context, w http.ResponseWriter, r *http.Request) {}
+	mux.Options(path, handler)
 	assertStatus(t, mux, "OPTIONS", path, http.StatusOK)
 }
 
 func TestPatch(t *testing.T) {
 	mux := New()
 	path := "/foo"
-	mux.Patch(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
+	var handler HandlerFunc = func(ctx context.Context, w http.ResponseWriter, r *http.Request) {}
+	mux.Patch(path, handler)
 	assertStatus(t, mux, "PATCH", path, http.StatusOK)
 }
 
 func TestPost(t *testing.T) {
 	mux := New()
 	path := "/foo"
-	mux.Post(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
+	var handler HandlerFunc = func(ctx context.Context, w http.ResponseWriter, r *http.Request) {}
+	mux.Post(path, handler)
 	assertStatus(t, mux, "POST", path, http.StatusOK)
 }
 
 func TestPut(t *testing.T) {
 	mux := New()
 	path := "/foo"
-	mux.Put(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
+	var handler HandlerFunc = func(ctx context.Context, w http.ResponseWriter, r *http.Request) {}
+	mux.Put(path, handler)
 	assertStatus(t, mux, "PUT", path, http.StatusOK)
 }
 
 func TestTrace(t *testing.T) {
 	mux := New()
 	path := "/foo"
-	mux.Trace(path, func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
+	var handler HandlerFunc = func(ctx context.Context, w http.ResponseWriter, r *http.Request) {}
+	mux.Trace(path, handler)
 	assertStatus(t, mux, "TRACE", path, http.StatusOK)
 }
 
 func newMuxWithGetPaths(paths []string) *Mux {
 	mux := New()
 	for _, path := range paths {
-		mux.Get(path, func(p string) HandlerFunc {
+		mux.GetFunc(path, func(p string) HandlerFunc {
 			return func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 				io.WriteString(w, p)
 			}
@@ -144,7 +208,7 @@ func newMuxWithGetPaths(paths []string) *Mux {
 func newMuxWithPostPaths(paths []string) *Mux {
 	mux := New()
 	for _, path := range paths {
-		mux.Post(path, func(p string) HandlerFunc {
+		mux.PostFunc(path, func(p string) HandlerFunc {
 			return func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 				io.WriteString(w, p)
 			}
@@ -175,7 +239,7 @@ func TestMuxStaticNotFound(t *testing.T) {
 	mux := New()
 	mux.RedirectTrailingSlash = false
 	nilHandlerPath := "/nilhandler"
-	mux.Get(nilHandlerPath, nil)
+	mux.GetFunc(nilHandlerPath, nil)
 	assertStatus(t, mux, "GET", nilHandlerPath, http.StatusNotFound)
 	assertStatus(t, mux, "GET", "/undefined", http.StatusNotFound)
 }
@@ -192,7 +256,7 @@ func TestMuxStaticRedirectTrailingSlashGet(t *testing.T) {
 		"/b/",
 		"/b/:id/",
 	})
-	mux.Get("/nilhandler", nil)
+	mux.GetFunc("/nilhandler", nil)
 	mux.RedirectTrailingSlash = true
 
 	expectations := []struct {
@@ -234,7 +298,7 @@ func TestMuxStaticRedirectTrailingSlashPost(t *testing.T) {
 		"/bar/",
 		"/bar/foo/",
 	})
-	mux.Post("/nilhandler", nil)
+	mux.PostFunc("/nilhandler", nil)
 	mux.RedirectTrailingSlash = true
 
 	expectations := []struct {
@@ -278,8 +342,8 @@ func TestMuxPathParams(t *testing.T) {
 
 func TestDuplicatePathParam(t *testing.T) {
 	mux := New()
-	mux.Get("/:foo", nil)
-	err := mux.Get("/:bar", nil)
+	mux.GetFunc("/:foo", nil)
+	err := mux.GetFunc("/:bar", nil)
 	if err == nil {
 		t.Errorf("Expected path param already defined error, got nil")
 	}
@@ -345,7 +409,7 @@ func splitSlicesEqual(a, b []string) bool {
 
 func BenchmarkMuxStaticSimple(b *testing.B) {
 	mux := New()
-	mux.Get("/foo", func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
+	mux.GetFunc("/foo", func(ctx context.Context, w http.ResponseWriter, r *http.Request) {})
 	for n := 0; n < b.N; n++ {
 		r, err := http.NewRequest("GET", "/foo", nil)
 		if err != nil {

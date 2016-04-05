@@ -33,7 +33,7 @@ import (
 
 func main() {
 	mux := moku.New()
-	mux.Get("/foo/:bar", func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	mux.GetFunc("/foo/:bar", func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Hello, %s\n", moku.PathParams(ctx)["bar"])
 	})
 	http.Handle("/", mux)
