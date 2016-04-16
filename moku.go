@@ -72,6 +72,17 @@ type node struct {
 	handler Handler
 }
 
+func (n *node) isWild() (isWild bool) {
+	isWild = len(part) > 0 && part[0] == ':'
+	return
+}
+
+func (n *node) wildName() (name string) {
+	for name = range n.nodes {
+	}
+	return
+}
+
 func newNode() *node {
 	return &node{
 		nodes: make(map[string]*node),
@@ -186,20 +197,21 @@ func (m *Mux) addRoute(method string, path string, handler Handler) error {
 	}
 	err := splitString(path[1:], "/", func(part string) error {
 		if len(part) > 0 && part[0] == ':' {
-			if currentNode.pathParam.node == nil {
-				currentNode.pathParam.name = part[1:]
-				currentNode.pathParam.node = newNode()
-			} else {
-				if currentNode.pathParam.name != part[1:] {
+			switch {
+			case len(currentNode.nodes) == 1:
+				name = currentNode.wildName()
+				if part != existing {
 					return fmt.Errorf(
 						"Path param ':%s' of '%s' already defined as ':%s'",
 						part,
 						path,
-						currentNode.pathParam.name,
+						existing,
 					)
 				}
+			case len(currentNode.nodes) > 1:
+				return fmt.Errorf("Static nodes already exist so cannot add wild node %s", part)
 			}
-			currentNode = currentNode.pathParam.node
+			currentNode = currentNode.nodes[part]
 			return nil
 		}
 		t := currentNode.nodes
@@ -269,7 +281,7 @@ func (m *Mux) findHandler(r *http.Request, pathParams map[string]string) (Handle
 		node, ok = nextNodeCandidates[part]
 		if ok {
 			nextNodeCandidates = node.nodes
-		} else if lastNode.pathParam.node != nil && part != "" {
+		} else if lastNode.IsWild() && part != "" {
 			pathParams[lastNode.pathParam.name] = part
 			node = lastNode.pathParam.node
 			nextNodeCandidates = node.nodes
