@@ -68,11 +68,7 @@ func PathParams(ctx context.Context) map[string]string {
 }
 
 type node struct {
-	nodes     map[string]*node
-	pathParam struct {
-		name string
-		node *node
-	}
+	nodes   map[string]*node
 	handler Handler
 }
 
