@@ -1,5 +1,5 @@
 # Moku
-Moku is a simple but powerful tree-based HTTP router.
+Moku tries to be a simple but powerful tree-based HTTP router. Don't use it.
 
 ## Features
 Moku provides:
