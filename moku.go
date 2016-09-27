@@ -17,23 +17,6 @@ const (
 	pathParamsKey contextKey = iota
 )
 
-// Handler is http.Handler with added context
-type Handler interface {
-	ServeHTTPC(context.Context, http.ResponseWriter, *http.Request)
-}
-
-// HandlerFunc is http.HandlerFunc with added context
-type HandlerFunc func(context.Context, http.ResponseWriter, *http.Request)
-
-// ServeHTTPC calls f(ctx, w, r) and responds not found if f is nil
-func (f HandlerFunc) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	if f != nil {
-		f(ctx, w, r)
-	} else {
-		http.NotFound(w, r)
-	}
-}
-
 // Mux is the router/muxer. Create an instance of Mux using New().
 type Mux struct {
 	sync.RWMutex
@@ -73,7 +56,7 @@ type node struct {
 		name string
 		node *node
 	}
-	handler Handler
+	handler http.Handler
 }
 
 func newNode() *node {
@@ -93,88 +76,88 @@ func New() *Mux {
 }
 
 // Delete configures a DELETE route.
-func (m *Mux) Delete(path string, handler Handler) error {
+func (m *Mux) Delete(path string, handler http.Handler) error {
 	return m.addRoute("DELETE", path, handler)
 }
 
 // DeleteFunc configures a DELETE route.
-func (m *Mux) DeleteFunc(path string, handler HandlerFunc) error {
+func (m *Mux) DeleteFunc(path string, handler http.HandlerFunc) error {
 	return m.Delete(path, handler)
 }
 
 // Get configures a GET route.
-func (m *Mux) Get(path string, handler Handler) error {
+func (m *Mux) Get(path string, handler http.Handler) error {
 	return m.addRoute("GET", path, handler)
 }
 
 // GetFunc configures a GET route.
-func (m *Mux) GetFunc(path string, handler HandlerFunc) error {
+func (m *Mux) GetFunc(path string, handler http.HandlerFunc) error {
 	return m.Get(path, handler)
 }
 
 // Head configures a HEAD route.
-func (m *Mux) Head(path string, handler Handler) error {
+func (m *Mux) Head(path string, handler http.Handler) error {
 	return m.addRoute("HEAD", path, handler)
 }
 
 // HeadFunc configures a HEAD route.
-func (m *Mux) HeadFunc(path string, handler HandlerFunc) error {
+func (m *Mux) HeadFunc(path string, handler http.HandlerFunc) error {
 	return m.Head(path, handler)
 }
 
 // Options configures an OPTIONS route.
-func (m *Mux) Options(path string, handler Handler) error {
+func (m *Mux) Options(path string, handler http.Handler) error {
 	return m.addRoute("OPTIONS", path, handler)
 }
 
 // OptionsFunc configures an OPTIONS route.
-func (m *Mux) OptionsFunc(path string, handler HandlerFunc) error {
+func (m *Mux) OptionsFunc(path string, handler http.HandlerFunc) error {
 	return m.Options(path, handler)
 }
 
 // Patch configures a PATCH route.
-func (m *Mux) Patch(path string, handler Handler) error {
+func (m *Mux) Patch(path string, handler http.Handler) error {
 	return m.addRoute("PATCH", path, handler)
 }
 
 // PatchFunc configures a PATCH route.
-func (m *Mux) PatchFunc(path string, handler HandlerFunc) error {
+func (m *Mux) PatchFunc(path string, handler http.HandlerFunc) error {
 	return m.Patch(path, handler)
 }
 
 // Post configures a POST route.
-func (m *Mux) Post(path string, handler Handler) error {
+func (m *Mux) Post(path string, handler http.Handler) error {
 	return m.addRoute("POST", path, handler)
 }
 
 // PostFunc configures a POST route.
-func (m *Mux) PostFunc(path string, handler HandlerFunc) error {
+func (m *Mux) PostFunc(path string, handler http.HandlerFunc) error {
 	return m.Post(path, handler)
 }
 
 // Put configures a PUT route.
-func (m *Mux) Put(path string, handler Handler) error {
+func (m *Mux) Put(path string, handler http.Handler) error {
 	return m.addRoute("PUT", path, handler)
 }
 
 // PutFunc configures a PUT route.
-func (m *Mux) PutFunc(path string, handler HandlerFunc) error {
+func (m *Mux) PutFunc(path string, handler http.HandlerFunc) error {
 	return m.Put(path, handler)
 }
 
 // Trace configures a TRACE route.
-func (m *Mux) Trace(path string, handler Handler) error {
+func (m *Mux) Trace(path string, handler http.Handler) error {
 	return m.addRoute("TRACE", path, handler)
 }
 
 // TraceFunc configures a TRACE route.
-func (m *Mux) TraceFunc(path string, handler HandlerFunc) error {
+func (m *Mux) TraceFunc(path string, handler http.HandlerFunc) error {
 	return m.Trace(path, handler)
 }
 
 var errNoLeadingSlash = errors.New("Path does not being with leading slash")
 
-func (m *Mux) addRoute(method string, path string, handler Handler) error {
+func (m *Mux) addRoute(method string, path string, handler http.Handler) error {
 	if m.ConcurrentAdd {
 		m.Lock()
 		defer m.Unlock()
@@ -222,16 +205,13 @@ func (m *Mux) addRoute(method string, path string, handler Handler) error {
 	return nil
 }
 
+// ServeHTTP handles requests
 func (m *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	m.ServeHTTPC(context.Background(), w, r)
-}
-
-// ServeHTTPC is ServeHTTP with added context
-func (m *Mux) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	pathParams := PathParams(ctx)
+	pathParams := PathParams(r.Context())
 	if pathParams == nil {
 		pathParams = make(map[string]string)
-		ctx = context.WithValue(ctx, pathParamsKey, pathParams)
+		ctx = context.WithValue(r.Context(), pathParamsKey, pathParams)
+		r = r.WithContext(ctx)
 	}
 	h, isRedirect := m.findHandler(r, pathParams)
 	if h == nil {
@@ -247,7 +227,7 @@ func (m *Mux) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.Req
 			http.NotFound(w, r)
 		}
 	} else {
-		h.ServeHTTPC(ctx, w, r)
+		h.ServeHTTP(w, r)
 	}
 }
 
